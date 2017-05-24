@@ -1,7 +1,7 @@
 LIB=
 CC=g++
 CPFLAGS=-std=c++11
-BIN_NAME=mytree
+BIN_NAME=test
 
 #-stdlib=libstdc++
 #-O2 -Wunknown-pragmas
