@@ -5,8 +5,8 @@
 #include <string>
 #include <ctime>
 #include <iostream>
+
 using namespace std;
-#define MAX_TREE_LEVEL 3
 
 /*
  *  Here we suppose that one indirect block can only locate 4 addresses.
@@ -14,12 +14,12 @@ using namespace std;
  */
 
 ////#define MAX_TREE_SIZE 1024
-int MAX_TREE_SIZE = 32;
+const int max_tree_size_default = 32;
+int MAX_TREE_SIZE = max_tree_size_default;
 
 #define is_leaf(x) (x->get_depth() == 0)
 #define is_head(x) (x->get_level() == 0)
 #define is_null(x) (x == NULL)
-#define push_leaf_data(x, y) {x->get_data().push_back(y);}
 
 //#define _TREE_DEBUG_ 
 
@@ -36,7 +36,7 @@ static int maxBlock = 0xFFFFFFF0;
 static int currBlock = 1;
 
 int AllocBlock() {
-  if (currBlock >= 9200000) {
+  if (currBlock >= 0xFFFFFFFE) {
     ////throw "Exceed block number to allocation";
     return -1;
   }
@@ -100,7 +100,7 @@ public:
     return _Level;
   }
 
-  void push_back(CSelfGrowthTree* SubTree) {
+  void add_sub_tree(CSelfGrowthTree* SubTree) {
     _SubTree.push_back(SubTree);
   }
 
@@ -136,16 +136,14 @@ public:
     return _Data;
   }
 
+  void push_data(int data) {
+    _Data.push_back(data);
+  }
+
   int get_data_remain() {
     return _MaxNodes - _Data.size();
   }
  
-  bool new_leaf() {
-    //if (_CurrLeaf == NULL) {
-    //  throw "Need to build initial the tree first.";   
-    //}   
-    return NewLeaf(_CurrLeaf);
-  }
   /*
    *  Returns the leaf created data count.
    */
@@ -183,7 +181,7 @@ public:
       }
       int cnt = Tree->get_width();
       bool full = true;
-#if 1
+      
       vector<CSelfGrowthTree*>& subTree = Tree->get_sub_tree_array();
       vector<CSelfGrowthTree*>::iterator it = subTree.begin();
       vector<CSelfGrowthTree*>::iterator end = subTree.end();
@@ -195,14 +193,6 @@ public:
         }              
         ++it;
       }      
-#else
-      for (int i = 0; i < cnt; ++i) {
-        if (IsTreeFull(Tree->get_sub_tree(i)) == false) {
-          full = false;
-          break;
-        }
-      }
-#endif     
       return full; 
     }
   }
@@ -222,7 +212,7 @@ public:
         vector<int>& data = node->get_data();
       
         while (space && Count) {
-          int value = node->AllocIndex();
+          int value = node->AllocIndex();        
 
           if (value > 0) {
             data.push_back(value);
@@ -250,45 +240,8 @@ public:
       }           
     } // while end
   }
-
-  static bool NewLeaf(CSelfGrowthTree* CurrPos) {                  
-    CSelfGrowthTree* parent;
-    CSelfGrowthTree* node = CurrPos;
-    bool success = false;
     
-    while (!success) {
-      if (!is_leaf(node) && node->is_node_empty()) {
-        node = NewSubTree(node);
-      }
-      parent = node->get_parent();
-
-      if (is_leaf(node) && (!node->is_node_full())) {
-        int value = node->AllocIndex();
-        
-        if (value > 0) {
-          push_leaf_data(node, value); 
-          CurrPos = node;
-          return true;
-        } else {
-          return false;
-        }
-      }
-      else if (!is_null(parent) && (!parent->is_node_full())) {    
-        node = NewSubTree(parent);        
-      }
-      else {
-        if (!is_null(parent) && (!is_head(parent))) {
-          node = parent;
-        }
-        else {
-          return false;
-        }
-      }     
-    }    
-
-  }
-    
- static CSelfGrowthTree* NewSubTree(CSelfGrowthTree* Parent) {         
+  static CSelfGrowthTree* NewSubTree(CSelfGrowthTree* Parent) {         
     /* The allocation function must handle number exceed */    
     int index = Parent->AllocIndex();   
     int depth = Parent->get_depth() - 1;    
@@ -302,9 +255,10 @@ public:
 
       CSelfGrowthTree* subTree = new CSelfGrowthTree(index, Parent->get_level() + 1, MAX_TREE_SIZE, depth, Parent);       
       subTree->AllocIndex = Parent->AllocIndex;
+      Parent->push_data(index);              
       
       dbg_printf("New sub tree's ptr = %07x\n", subTree);         
-      Parent->push_back(subTree);
+      Parent->add_sub_tree(subTree);
 
       return NewSubTree(subTree);
     }
@@ -378,8 +332,7 @@ class CInodeTree
 {
 public:
  
-  CInodeTree() {
-    
+  CInodeTree() {    
   }  
 
   void Init_DIND_Tree() {
@@ -405,61 +358,34 @@ public:
     _TIND_Tree->build_init_tree();    
   }
 
-  void New_DIND_Addr(int Count) {
-#ifdef _TREE_DEBUG_          
-    printf("Create %d new address in the Double Indirect link table\n", Count);
-#endif
-    while (Count) {
-      _DIND_Tree->new_leaf();                 
-      --Count;
-    } 
+  int New_DIND_Addr(int Count) {
+    dbg_printf("Create %d new address in the Double Indirect link table\n", Count);
+    int created = _DIND_Tree->new_leaves(Count);
+    return created;
   }
 
- void New_TIND_Addr(int Count) {
-#ifdef _TREE_DEBUG_         
-    printf("Create %d new address in the Tripple Indirect link table\n", Count);
-#endif
-    while (Count) {
-      _TIND_Tree->new_leaf();   
-      ////_TIND_Tree->dump_tree();          
-      --Count;
-    } 
-  } 
-  int Create_DIND_Full_Addr() {
-    int counter = 0;         
-    while (!_DIND_Tree->is_tree_full()) {
-      if (_DIND_Tree->new_leaf() == false) {
-        break;
-      }
-      //_DIND_Tree->dump_tree();            
-      ++counter;
-    }
-    return counter;
+ int New_TIND_Addr(int Count) {
+    dbg_printf("Create %d new address in the Tripple Indirect link table\n", Count);
+    int created = _TIND_Tree->new_leaves(Count);
+    return created;
   }
-
-  int Create_TIND_Full_Addr() {
-#if 1       
+  /*
+   *  This function is for testing performance of full filling
+   *  a two level tree with a limited size.
+   */
+  int Create_Full_Tree(int TreeLevel) {
     int counter = 0;    
-    int want_per_loop = 32;//MAX_TREE_SIZE > 100 ? 100 : MAX_TREE_SIZE;
-    int created = _TIND_Tree->new_leaves(want_per_loop);
+    int want_per_loop = 200;//MAX_TREE_SIZE > 100 ? 100 : MAX_TREE_SIZE;
+    int created = TreeLevel == 2 ? _DIND_Tree->new_leaves(want_per_loop) :
+                                   _TIND_Tree->new_leaves(want_per_loop);    
     counter += created;
 
     while (created) {
-      created = _TIND_Tree->new_leaves(want_per_loop);
+      created = TreeLevel == 2 ? _DIND_Tree->new_leaves(want_per_loop) :
+                                 _TIND_Tree->new_leaves(want_per_loop);
       counter += created;
     }
-    return counter; 
-#else
-    int counter = 0;         
-    while (!_TIND_Tree->is_tree_full()) {    
-      if (_TIND_Tree->new_leaf() == false) {
-        break;
-      }
-      //_TIND_Tree->dump_tree();            
-      ++counter;
-    }
-    return counter;
-#endif    
+    return counter;   
  }
 
   void Dump_DIND_Tree() {
@@ -491,87 +417,148 @@ private:
   CSelfGrowthTree*  _TIND_Tree;
 };
 
-int main(int argc, char* argv[]) 
+enum eTreeLevel {TREE_DIND=2, TREE_TIND=3};
+bool TestMode = false;
+bool DumpTree = false;
+int TreeLevel = TREE_DIND;
+int BuildNumber = 0;
+bool HelpMode = false;
+
+bool PRS(int argc, char* argv[])
 {
-  char select = 0;
-  char want_dump = 0;
-  
-  CInodeTree tree;
-  
-  if (argc >= 2) {
-    MAX_TREE_SIZE = atoi(argv[1]);
+  for (int i = 1; i < argc; ) {
+    char* arg = argv[i];
+
+    if (arg[0] != '-') {
+      perror("Invalid input argument");
+      return false;
+    }
+    else if (arg[1] == 't') {
+      TestMode = true;
+    }
+    else if (arg[1] == 'n') {
+      BuildNumber = atoi(argv[i+1]);
+      ++i;  
+    }
+    else if (arg[1] == 'l') {
+      int lv = atoi(argv[i+1]);
+      if (lv != 2 && lv != 3) {
+        perror("Invalid tree level input");
+        return false;
+      }
+      TreeLevel = lv;
+      ++i;
+    }
+    else if (arg[1] == 's') {
+      MAX_TREE_SIZE = atoi(argv[i+1]);
+      ++i;
+    }    
+    else if (arg[1] == 'd') {
+      DumpTree = true;
+    }
+    else if (arg[1] == 'h') {
+      HelpMode = true;
+    }
+    ++i;
   }
+  return true;
+}
 
-#if 1
-  while (1) {              
-    cout << "Which depth tree to create ? (2/3) or others to break. \n";
-    cin >> select;
-    cout << "Want to dump result ? (y/n)\n";
-    cin >> want_dump;
-    cout << endl;
-  
-    if (select != '2'  && select != '3') {
-      break;
-    }
-    clock_t begin, end;
+void disp_help()
+{
+  printf( "-t: Enable Test Mode (Full fill tree with limited tree size)\n"
+          "-s: The tree size limitation. If not indicated, the default is %d\n"           
+          "-n: For non-test mode, the number of leaf node to build.\n"
+          "-l: The tree level. 2 or 3 is available for selecting DIND or TINT tree.\n"
+          "    Default is DIND Tree.\n"
+          "-h: Show this help document.\n"
+          "-d: Dump the tree at final.\n", max_tree_size_default);
+}
 
-    if (select == '2') {
-      tree.AllocIndex = AllocBlock;     
-      tree.Init_DIND_Tree();      
+void disp_params()
+{        
+  printf("****************\n");
+  printf("Parameters: \n");
+  printf(TestMode ? "Test Mode\n" : "Normal Mode\n");
+  printf(TreeLevel == TREE_DIND ? "Build DIND Tree\n" : "Build TIND Tree\n");
+  printf(DumpTree ? "Dump Tree\n" : "No Dump Tree\n");
+  printf("Tree Size Limit: %d\n", MAX_TREE_SIZE);                  
+  if (!TestMode) {
+    printf("Build Number Of Nodes: %d\n", BuildNumber);
+  }  
+  printf("****************\n");
+}
 
-      begin = clock();   
-      int count = tree.Create_DIND_Full_Addr();
-      end = clock();
-      printf("---------------------------------\n");
-      
-      if (want_dump == 'y' || want_dump == 'Y') {
-        tree.Dump_DIND_Tree(); 
-      }      
-      printf("\n%d addresses were added into the DIND tree.\n", count);      
-    }
-    else if (select == '3') {
-      tree.AllocIndex = AllocBlock;     
-      tree.Init_TIND_Tree();      
-
-      begin = clock();   
-      int count = tree.Create_TIND_Full_Addr();
-      end = clock();
-      printf("---------------------------------\n");
-     
-      if (want_dump == 'y' || want_dump == 'Y') {
-        tree.Dump_TIND_Tree();
-      }       
-      printf("\n%d addresses were added into the TIND tree.\n", count);      
-       
-    }
-    int total_ns = (((float)end - begin) / CLOCKS_PER_SEC) * 1000000;
-    int ns = total_ns % 1000;
-    int total_ms = total_ns / 1000;
-    int ms = total_ms % 1000;
-    int total_sec = total_ms / 1000;
-
-    printf("Elapsed: %d (second) : %d (ms) : %d (ns) \n", total_sec, ms, ns);   
-    break;
-  }       
- #else
-  tree.AllocIndex = AllocBlock;
-  tree.Init_TIND_Tree();
-  clock_t start = clock();
-  int count = tree.Create_TIND_Full_Addr();
-  clock_t end = clock();
- 
-  tree.Dump_TIND_Tree();          
-
-  printf("%d addresses were added into the TIND Tree.\n", count);
-  printf("---------------------------------\n");
-
-  int total_ns = (((float)end - start) / CLOCKS_PER_SEC) * 1000000;
+void disp_elapsed(clock_t begin, clock_t end) 
+{
+  int total_ns = (((float)end - begin) / CLOCKS_PER_SEC) * 1000000;
   int ns = total_ns % 1000;
   int total_ms = total_ns / 1000;
   int ms = total_ms % 1000;
   int total_sec = total_ms / 1000;
 
-  printf("Elapsed: %d (second) : %d (ms) : %d (ns) \n", total_sec, ms, ns);
-#endif
+  printf("Elapsed: %d (second) : %d (ms) : %d (ns) \n", total_sec, ms, ns);    
+}
+
+void disp_hel() {
+  
+}
+
+int main(int argc, char* argv[]) 
+{
+  char select = 0;
+  char want_dump = 0;
+  
+  if (!PRS(argc, argv)) {
+    return -1;
+  }
+
+  if (HelpMode) {
+    disp_help();
+    return 0;
+  }
+
+  disp_params();
+  
+  CInodeTree tree;
+  tree.AllocIndex = AllocBlock;
+  if (TreeLevel == TREE_DIND) {
+    tree.Init_DIND_Tree();
+  }
+  else {
+    tree.Init_TIND_Tree();
+  }
+  int count = 0;
+  clock_t begin, end;
+  begin = clock();  
+
+  if (TestMode) {
+    count = tree.Create_Full_Tree(TreeLevel);
+  }
+  else {
+    if (TreeLevel == TREE_DIND) {
+      count = tree.New_DIND_Addr(BuildNumber);
+    }
+    else {
+      count = tree.New_TIND_Addr(BuildNumber);      
+    }          
+  }
+  end = clock();
+  if ((!TestMode) && (count != BuildNumber)) {
+    printf("** Warning: The tree size is insufficient to build wanted number of addresses**\n"
+           " Remaining %d nodes had not built.\n", BuildNumber - count);
+  }    
+  if (DumpTree) {
+    if (TreeLevel == TREE_DIND) {
+      tree.Dump_DIND_Tree();    
+    }
+    else {
+      tree.Dump_TIND_Tree(); 
+    }
+  }
+
+  printf("Have built %d addresses into the tree\n", count);
+  disp_elapsed(begin, end); 
+
   return 0;        
 }

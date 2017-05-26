@@ -21,7 +21,7 @@ CntFile   = 0
 define ADD_RULE_TEMPLATE
 	$(eval ofilepath = $(wildcard $(OBJDIR)/$(notdir $(patsubst %.cpp, %.o, $(1) ) ) ) )
 	$(eval ofile = $(wildcard $(notdir $(patsubst %.cpp, %.o, $(1) ) ) ) )
-  $(if $(ofilepath), @echo "1 file has compiled ==> $(ofilepath)", @echo "  New compile => $(notdir $(1))"; $(CC) -g $(CPFLAGS) $(INCLUDES) -c -fpic $(1); mv $(OBJ) $(OBJDIR);)
+  $(if $(ofilepath), @echo "1 file has compiled ==> $(ofilepath)", @echo "  New compile => $(notdir $(1))"; $(CC) -g  $(CPFLAGS) $(INCLUDES) -c -fpic $(1); mv $(OBJ) $(OBJDIR);)
 endef
 
 .PHONY: all $(SRCDIR) $(OBJDIR)
