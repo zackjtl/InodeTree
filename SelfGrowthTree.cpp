@@ -12,22 +12,11 @@ using namespace std;
  *  Actually that is the block size divided by 4.
  */
 
-////#define MAX_TREE_SIZE 1024
-const int max_tree_size_default = 32;
 int CSelfGrowthTree::MAX_TREE_SIZE = max_tree_size_default;
 
 #define is_leaf(x) (x->get_depth() == 0)
 #define is_head(x) (x->get_level() == 0)
 #define is_null(x) (x == NULL)
-
-//#define _TREE_DEBUG_ 
-
-#ifdef _TREE_DEBUG_
-#define dbg_printf(format, ...) printf(format "debug: ", __VA_ARGS__)
-//#define dbg_printf printf
-#else
-#define dbg_printf(format, ...) 
-#endif
 
 /*
  *  The methods implementation of CSelfGrowthTree

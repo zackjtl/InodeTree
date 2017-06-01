@@ -4,6 +4,9 @@
 #include <ctime>
 #include <iostream>
 
+#include "InodeTree.h"
+#include "SelfGrowthTree.h"
+
 using namespace std;
 
 static int currBlock = 1;
@@ -51,7 +54,7 @@ bool PRS(int argc, char* argv[])
       ++i;
     }
     else if (arg[1] == 's') {
-      MAX_TREE_SIZE = atoi(argv[i+1]);
+      CSelfGrowthTree::MAX_TREE_SIZE = atoi(argv[i+1]);
       ++i;
     }    
     else if (arg[1] == 'd') {
@@ -83,7 +86,7 @@ void disp_params()
   printf(TestMode ? "Test Mode\n" : "Normal Mode\n");
   printf(TreeLevel == TREE_DIND ? "Build DIND Tree\n" : "Build TIND Tree\n");
   printf(DumpTree ? "Dump Tree\n" : "No Dump Tree\n");
-  printf("Tree Size Limit: %d\n", MAX_TREE_SIZE);                  
+  printf("Tree Size Limit: %d\n", CSelfGrowthTree::MAX_TREE_SIZE);                  
   if (!TestMode) {
     printf("Build Number Of Nodes: %d\n", BuildNumber);
   }  

@@ -4,7 +4,17 @@
 #include <vector>
 typedef int (*alloc_index_fn)();
 
-extern int MAX_TREE_SIZE;
+//#define _TREE_DEBUG_
+
+const int max_tree_size_default = 32;
+
+#ifdef _TREE_DEBUG_
+#define dbg_printf(format, ...) printf(format "debug: ", __VA_ARGS__)
+//#define dbg_printf printf
+#else
+#define dbg_printf(format, ...) 
+#endif
+
 /*
  *  The tree node of the self organized tree
  */
